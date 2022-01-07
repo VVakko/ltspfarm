@@ -1,0 +1,6 @@
+# Editors
+.vscode/
+
+# LTSP data files
+ltsp/data/*
+!ltsp/data/.gitkeep

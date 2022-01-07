@@ -1,0 +1,75 @@
+version: '3'
+
+volumes:
+  shared:
+    driver_opts:
+      device: tmpfs
+      type: tmpfs
+
+services:
+  ltspfarm-conf:
+    image: "acmenet/ltspfarm"
+    container_name: "ltspfarm-conf"
+    restart: always
+    environment:
+      TZ: "Europe/Moscow"
+    volumes:
+      - ${PWD}/ltsp:/etc/ltsp
+      - shared:/srv/tftp_shared
+    entrypoint: [ "/bin/sh", "-c" ]
+    command:
+      - touch /etc/ssh/ssh_host_none_key.pub;
+        while true; do
+          echo "Generating ltsp.img and iPXE configuration files...";
+          ltsp initrd &&
+          ltsp ipxe --http=1 --http-image=1 &&
+          sed -i 's@//\$${srv}@//\$${srv}:6980@' /srv/tftp/ltsp/ltsp.ipxe &&
+          cp -prf /srv/tftp/* /srv/tftp_shared/ &&
+          touch /srv/tftp_shared/.tftp-ready &&
+          inotifywait -e create,delete,modify,move -r /etc/ltsp --quiet;
+        done
+
+  ltspfarm-http:
+    image: "acmenet/ltspfarm"
+    container_name: "ltspfarm-http"
+    restart: always
+    depends_on:
+      - ltspfarm-conf
+    environment:
+      TZ: "Europe/Moscow"
+    ports:
+      - "6980:80/tcp"
+    volumes:
+      - shared:/srv/tftp
+    entrypoint: [ "/bin/sh", "-c" ]
+    command:
+      - while [ ! -f /srv/tftp/.tftp-ready ]; do sleep 1; done;
+        echo "Generating nginx configuration file...";
+        ltsp http -I 2>/dev/null;
+        ln -sf /proc/self/fd/2 /var/log/nginx/error.log;
+        ln -sf /proc/self/fd/2 /var/log/nginx/access.log;
+        exec nginx -g 'daemon off;'
+
+  ltspfarm-tftp:
+    image: "acmenet/ltspfarm"
+    container_name: "ltspfarm-tftp"
+    restart: always
+    depends_on:
+      - ltspfarm-conf
+    environment:
+      TZ: "Europe/Moscow"
+    cap_add:
+      - NET_ADMIN
+    network_mode: host
+    volumes:
+      - shared:/srv/tftp
+    entrypoint: [ "/bin/sh", "-c" ]
+    command:
+      - while [ ! -f /srv/tftp/.tftp-ready ]; do sleep 1; done;
+        echo "Generating dnsmasq configuration file...";
+        ltsp dnsmasq --dns=0 --proxy-dhcp=1 --real-dhcp=0 --tftp=1 2>/dev/null;
+        dnsmasq_conf='/etc/dnsmasq.d/ltsp-dnsmasq.conf';
+        sed -i 's@^dhcp-range=set:proxy,172.*@#&@' $$dnsmasq_conf;
+        sed -i 's@^dhcp-option=option:dns-server.*@#&@' $$dnsmasq_conf;
+        sed -i 's@ltsp/ltsp.ipxe@http://\$${proxydhcp/dhcp-server}:6980/&@' $$dnsmasq_conf;
+        exec dnsmasq --no-daemon --conf-dir=/etc/dnsmasq.d

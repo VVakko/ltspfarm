@@ -23,7 +23,7 @@ services:
           echo "Generating ltsp.img and iPXE configuration files...";
           ltsp initrd &&
           ltsp ipxe --http=1 --http-image=1 &&
-          sed -i 's@//\$${srv}@//\$${srv}:6980@' /srv/tftp/ltsp/ltsp.ipxe &&
+          sed -i 's@//\$${srv}@//\$${srv}:6980@g' /srv/tftp/ltsp/ltsp.ipxe &&
           cp -prf /srv/tftp/* /srv/tftp_shared/ &&
           touch /srv/tftp_shared/.tftp-ready &&
           inotifywait -e create,delete,modify,move -r /etc/ltsp --quiet;

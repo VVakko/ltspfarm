@@ -3,9 +3,6 @@
 # Directory with LTSP data and scripts
 LTSPDATA="/etc/ltsp/data"
 
-# Disable autoupdates
-systemctl mask apt-daily.timer apt-daily-upgrade.timer
-
 # Setup SSH Daemon
 ssh-keygen -A
 

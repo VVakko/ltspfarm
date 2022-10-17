@@ -1,6 +1,10 @@
 # Editors
 .vscode/
 
+# Data folder for shared files
+data/*
+!data/.gitkeep
+
 # LTSP data files
 ltsp/data/*
 !ltsp/data/.gitkeep

@@ -1,0 +1,15 @@
+[Unit]
+Description=Portainer Agent Service with docker compose
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+WorkingDirectory=/srv/docker/portainer-agent/
+ExecStartPre=/usr/bin/docker compose down -v
+ExecStartPre=-/bin/bash -c 'docker ps -aqf "name=portainer-agent" | xargs docker rm'
+ExecStart=/usr/bin/docker compose up
+ExecStop=/usr/bin/docker compose down
+
+[Install]
+WantedBy=multi-user.target

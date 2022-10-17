@@ -5,6 +5,11 @@
 data/*
 !data/.gitkeep
 
+# Except for only one example docker container
+data/docker/*
+!data/docker/
+!data/docker/portainer-agent/
+
 # LTSP data files
 ltsp/data/*
 !ltsp/data/.gitkeep

@@ -13,10 +13,10 @@ build-image-and-run: build-image
 cleanup-all: cleanup-images cleanup-volumes
 
 cleanup-images:
-	docker rmi `docker images --filter "dangling=true" -q 2>/dev/null` -q 2>/dev/null || true
+	docker rmi `docker images --filter "dangling=true" -q 2>/dev/null` 2>/dev/null || true
 
 cleanup-volumes:
-	docker rm -v `docker ps --filter "status=exited" -q 2>/dev/null` -q 2>/dev/null || true
+	docker rm -v `docker ps --filter "status=exited" -q 2>/dev/null` 2>/dev/null || true
 
 copy-srv-to-local:
 	docker run --volume ${PWD}:${MNT} --rm --entrypoint cp ${TAG} -r /srv ${MNT}

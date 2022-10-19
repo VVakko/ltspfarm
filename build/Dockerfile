@@ -37,6 +37,7 @@ RUN echo 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";\n' \
  && apt-get update \
  && apt-get -y install \
 	bash-completion \
+	bc \
 	curl \
 	gnupg \
 	htop \

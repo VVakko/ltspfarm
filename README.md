@@ -47,7 +47,7 @@ If **Raspberry Pi** will be used as a server, then docker must be additionally p
 $ make buildx-install
 ```
 
-Next, you need to build a disk image for PXE-booting and build docker **LTSP** containers:
+Next, you need to build a disk image for **PXE**-booting and build docker **LTSP** containers:
 ```sh
 $ make build-image
 $ make build-ltsp
@@ -59,11 +59,16 @@ $ docker compose up --detach
 ```
 > After any changes in the `./ltsp` folder, the `ltspfarm-conf` container will automatically rebuild `ltsp.img`.
 
-The image building on the **Intel NUC** computer will last about 3.5 minutes. But if this image is builded on a computer **Raspberry Pi 4**, then it will take about 80 minutes. Therefore, in the second case, it makes sense to transfer the building process to one of our nodes. It is very simple to do this. It is necessary that at least one note is started. Next, instead of the `make build-image` command, you need to run the command:
+The image building on the **Intel NUC** computer will last about 3.5 minutes. But if this image is builded on a computer **Raspberry Pi 4**, then it will take about 77 minutes (considering that an **NVMe**-disk is used instead of an **SD**-card!). Therefore, in the second case, it makes sense to transfer the building process to one of our nodes. It is very simple to do this. It is necessary that at least one note is started. Next, instead of the `make build-image` command, you need to run the command:
 ```sh
+$ nano ~/.ssh/config
+Host *
+    LogLevel ERROR
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
 $ make build-image-remote
 ```
-
+> All nodes after launch, every 10 minutes using `curl` ping the server: `curl -sA "ltspfarm/x86_64" http://server:6980/`. Next, using the command `docker logs ltspfarm-http --since 1h 2>&1 | grep "ltspfarm/x86_64"` we get a list of live cluster nodes and select 1 random IP-address from them. Then export the environment variable to `DOCKER_HOST=ssh://$(REMOTE_HOST)` and start the build process `make build-image`. Full commands can be viewed in the `Makefile` file.
 
 ## Preparing Server Host (Raspberry Pi / Intel NUC)
 

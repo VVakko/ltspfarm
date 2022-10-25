@@ -5,7 +5,7 @@
 FROM ubuntu:22.04 as ltsp
 
 ENV DEBIAN_FRONTEND="noninteractive"
-ENV VERSION="2022-10-22"
+ENV VERSION="2022-10-25"
 
 # Install updates and LTSP package
 RUN apt-get -y update \
@@ -38,6 +38,7 @@ RUN echo 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";\n' \
  && apt-get -y install \
 	bash-completion \
 	bc \
+	cron \
 	curl \
 	gnupg \
 	htop \

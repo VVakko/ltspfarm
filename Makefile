@@ -1,9 +1,5 @@
 SHELL=/bin/bash -o pipefail
 TAG  = acmenet/`basename ${PWD}`
-NAME = dev-`basename ${PWD}`
-UID  = `id -u`
-GID  = `id -g`
-MNT  = /mnt/local
 
 export DOCKER_BUILDKIT = 1
 
@@ -21,17 +17,25 @@ else ifeq ($(shell uname --hardware-platform), aarch64)
 endif
 
 build-image:
-	docker buildx build \
-		--tag ${TAG}-images \
-		--file ./build/Dockerfile ./build --output ${PWD}/images \
+	@docker buildx build \
+		--file ./build/Dockerfile ./build \
+		--output ./images \
 		--platform linux/amd64
-	docker buildx build \
+
+REMOTE_HOST := $(shell \
+	docker logs ltspfarm-http --since 1h 2>&1 \
+	| grep "ltspfarm/x86_64" \
+	| grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' \
+	| uniq | shuf -n 1 \
+)
+build-image-remote:
+	@export DOCKER_HOST=ssh://$(REMOTE_HOST) && make build-image
+
+build-ltsp:
+	@docker buildx build \
 		--tag ${TAG} \
 		--file ./build/Dockerfile.ltsp ./build \
 		--load
-
-build-image-and-run: build-image
-	docker run --rm --name ${NAME} -it ${TAG}
 
 cleanup-all: cleanup-images cleanup-volumes
 
@@ -40,7 +44,3 @@ cleanup-images:
 
 cleanup-volumes:
 	docker rm -v `docker ps --filter "status=exited" -q 2>/dev/null` 2>/dev/null || true
-
-copy-srv-to-local:
-	docker run --volume ${PWD}:${MNT} --rm --entrypoint cp ${TAG} -r /srv ${MNT}
-	docker run --volume ${PWD}:${MNT} --rm -it ${TAG} /usr/bin/chown -R ${UID}:${GID} ${MNT}

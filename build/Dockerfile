@@ -5,7 +5,7 @@
 FROM ubuntu:22.04 as ltsp
 
 ENV DEBIAN_FRONTEND="noninteractive"
-ENV VERSION="v0.0.3"
+ENV VERSION="2022-10-22"
 
 # Install updates and LTSP package
 RUN apt-get -y update \
@@ -14,9 +14,9 @@ RUN apt-get -y update \
 	wget \
  && apt-get clean
 
-RUN wget -P /etc/apt/sources.list.d/ https://ltsp.org/misc/ltsp-ubuntu-ppa-focal.list \
- && wget -P /etc/apt/sources.list.d/ https://ltsp.org/misc/ltsp-ubuntu-proposed-focal.list \
- && wget -P /etc/apt/trusted.gpg.d/ https://ltsp.org/misc/ltsp_ubuntu_ppa.gpg
+RUN wget -P /etc/apt/trusted.gpg.d/  https://ltsp.org/misc/ltsp_ubuntu_ppa.gpg \
+ && wget -P /etc/apt/sources.list.d/ https://ltsp.org/misc/ltsp-ubuntu-ppa-focal.list \
+ && wget -P /etc/apt/sources.list.d/ https://ltsp.org/misc/ltsp-ubuntu-proposed-focal.list
 
 RUN apt-get -y update \
  && apt-get -y install \
@@ -120,25 +120,10 @@ RUN ltsp image -I /
 
 
 #-------------------------------------------------------------------------------
-# LTSP-Server
+# Copying created rootfs images to local filesystem
 #-------------------------------------------------------------------------------
 
-FROM ltsp
+FROM scratch AS export-rootfs
 
-RUN apt-get -y update \
- && apt-get -y install \
-	dnsmasq \
-	grub-pc-bin \
-	grub-efi-amd64-bin \
-	inotify-tools \
-	nginx \
-	openssh-server \
-	rsync \
- && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config \
- && sed -i 's@/usr/lib/openssh/sftp-server@internal-sftp@g' /etc/ssh/sshd_config \
- && adduser ltsp --home /srv/ltsp --no-create-home --gecos "" --disabled-password \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
-
-COPY --from=rootfs /srv/ltsp/images /srv/ltsp/images
-COPY --from=rootfs /srv/tftp/ltsp /srv/tftp/ltsp
+COPY --from=rootfs /srv/ltsp/images ./ltsp
+COPY --from=rootfs /srv/tftp/ltsp ./tftp

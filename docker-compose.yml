@@ -15,17 +15,21 @@ services:
       TZ: "Europe/Moscow"
     volumes:
       - ${PWD}/ltsp:/etc/ltsp
-      - shared:/srv/tftp_shared
+      - ${PWD}/images/ltsp:/srv/ltsp/images
+      - ${PWD}/images/tftp:/srv/tftp.images
+      - shared:/srv/tftp
     entrypoint: [ "/bin/sh", "-c" ]
     command:
       - touch /etc/ssh/ssh_host_none_key.pub;
         while true; do
+          tftp_home='/srv/tftp/ltsp';
+          echo "Copying initrd.img and vmlinuz files...";
+          mkdir -p $$tftp_home && cp -prf /srv/tftp.images/* $$tftp_home &&
           echo "Generating ltsp.img and iPXE configuration files...";
           ltsp initrd &&
           ltsp ipxe --http=1 --http-image=1 &&
-          sed -i 's@//\$${srv}@//\$${srv}:6980@g' /srv/tftp/ltsp/ltsp.ipxe &&
-          cp -prf /srv/tftp/* /srv/tftp_shared/ &&
-          touch /srv/tftp_shared/.tftp-ready &&
+          sed -i 's@//\$${srv}@//\$${srv}:6980@g' $$tftp_home/ltsp.ipxe &&
+          touch /srv/tftp/.tftp-ready &&
           inotifywait -e create,delete,modify,move -r /etc/ltsp --quiet;
         done
 
@@ -40,6 +44,7 @@ services:
     ports:
       - "6980:80/tcp"
     volumes:
+      - ${PWD}/images/ltsp:/srv/ltsp/images
       - shared:/srv/tftp
     entrypoint: [ "/bin/sh", "-c" ]
     command:
@@ -62,6 +67,7 @@ services:
       - "6922:22/tcp"
     volumes:
       - ${PWD}/data:/srv/ltsp/data
+      - ${PWD}/images/ltsp:/srv/ltsp/images
       - shared:/srv/tftp
     entrypoint: [ "/bin/sh", "-c" ]
     command:
@@ -95,6 +101,7 @@ services:
       - NET_ADMIN
     network_mode: host
     volumes:
+      - ${PWD}/images/ltsp:/srv/ltsp/images
       - shared:/srv/tftp
     entrypoint: [ "/bin/sh", "-c" ]
     command:

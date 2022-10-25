@@ -25,8 +25,15 @@ Verifying - Password:
 # Set groups for user username
 $ echo "adm,audio,cdrom,docker,plugdev,sudo,systemd-journal,video" \
     >ltsp/data/users/username.groups.txt
+# Generate SSH key if you don't have one yet
+$ ssh-keygen -t rsa
+# Set SSH key for passwordless login on cluster nodes
+$ mkdir -p ltsp/data/users/username/.ssh/
+$ cat ~/.ssh/id_rsa.pub >>ltsp/data/users/username/.ssh/authorized_keys
+$ chmod 0600 ltsp/data/users/username/.ssh/authorized_keys
 ...
 # Build LTSP Docker Image and start containers
+$ make buildx-install  # If you will build amd64 images on Raspberry Pi
 $ make build-image
 $ docker-compose up --detach
 ```
@@ -41,6 +48,6 @@ $ docker-compose up --detach
 ```
 
 
-# Intel NUC Preparing
+# Preparing Server Host (Raspberry Pi / Intel NUC)
 
 ...

@@ -1,0 +1,50 @@
+#-------------------------------------------------------------------------------
+# Base Part Used for LTSP-Server and LTSP-Client
+#-------------------------------------------------------------------------------
+
+FROM ubuntu:22.04 as ltsp
+
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV VERSION="2022-10-22"
+
+# Install updates and LTSP package
+RUN apt-get -y update \
+ && apt-get -y upgrade \
+ && apt-get -y install \
+	wget \
+ && apt-get clean
+
+RUN wget -P /etc/apt/trusted.gpg.d/  https://ltsp.org/misc/ltsp_ubuntu_ppa.gpg \
+ && wget -P /etc/apt/sources.list.d/ https://ltsp.org/misc/ltsp-ubuntu-ppa-focal.list \
+ && wget -P /etc/apt/sources.list.d/ https://ltsp.org/misc/ltsp-ubuntu-proposed-focal.list
+
+RUN apt-get -y update \
+ && apt-get -y install \
+	ltsp-binaries \
+	ltsp-cloud \
+ && apt-get clean
+
+
+#-------------------------------------------------------------------------------
+# LTSP-Server
+#-------------------------------------------------------------------------------
+
+FROM ltsp
+
+RUN apt-get -y update \
+ && apt-get -y install \
+	dnsmasq \
+	inotify-tools \
+	nginx \
+	openssh-server \
+	rsync \
+ && if [ "$(uname -m)" = "x86_64" ]; then \
+		apt-get -y install grub-efi-amd64-bin grub-pc-bin; \
+	elif [ "$(uname -m)" = "aarch64" ]; then \
+		apt-get -y install grub-efi-arm64-bin; \
+	fi \
+ && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config \
+ && sed -i 's@/usr/lib/openssh/sftp-server@internal-sftp@g' /etc/ssh/sshd_config \
+ && adduser ltsp --home /srv/ltsp --no-create-home --gecos "" --disabled-password \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*

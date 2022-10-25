@@ -10,6 +10,10 @@ data/docker/*
 !data/docker/
 !data/docker/portainer-agent/
 
+# Data folder for LTSP images
+images/*
+!images/.gitkeep
+
 # LTSP data files
 ltsp/data/*
 !ltsp/data/.gitkeep

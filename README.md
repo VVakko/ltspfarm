@@ -59,7 +59,7 @@ $ docker compose up --detach
 ```
 > After any changes in the `./ltsp` folder, the `ltspfarm-conf` container will automatically rebuild `ltsp.img`.
 
-The image building on the **Intel NUC** computer will last about 3.5 minutes. But if this image is builded on a computer **Raspberry Pi 4**, then it will take about 80 minutes. Therefore, in the second case, it makes sense to transfer the building process to one of our nodes. Сделать это очень просто. Нужно чтобы хотя бы одна нода была запущена. Далее вместо команда `make build-image` необходимо выполнить команду:
+The image building on the **Intel NUC** computer will last about 3.5 minutes. But if this image is builded on a computer **Raspberry Pi 4**, then it will take about 80 minutes. Therefore, in the second case, it makes sense to transfer the building process to one of our nodes. It is very simple to do this. It is necessary that at least one note is started. Next, instead of the `make build-image` command, you need to run the command:
 ```sh
 $ make build-image-remote
 ```

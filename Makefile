@@ -13,12 +13,12 @@ help:  ## Show make help
 .PHONY: buildx-install
 buildx-install:  ## Install dependencies for multi-platform building
 ifeq ($(shell uname --hardware-platform), x86_64)
-	echo "Install buildx for amd64 (x86_64)..."
+	@echo "Install buildx for amd64 (x86_64)..."
 	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-	docker buildx create --name multiarch --driver docker-container --use
+	docker buildx create --driver docker-container --use --name multiarch
 	docker buildx inspect --bootstrap
 else ifeq ($(shell uname --hardware-platform), aarch64)
-	echo "Install buildx for arm64 (aarch64)..."
+	@echo "Install buildx for arm64 (aarch64)..."
 	docker run --rm --privileged tonistiigi/binfmt --install amd64,arm64
 	docker buildx create --platform linux/amd64 --use --name amd64
 	docker buildx create --platform linux/arm64 --use --name arm64

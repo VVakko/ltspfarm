@@ -48,12 +48,16 @@ build-ltsp:  ## Build LTSP docker images for running LTSP farm
 		--load
 
 .PHONY: cleanup-all
-cleanup-all: cleanup-images cleanup-volumes  ## Remove dangling docker images and unused docker volumes
+cleanup-all: cleanup-containers cleanup-images cleanup-volumes  ## Remove unused docker containers, images and volumes
+
+.PHONY: cleanup-containers
+cleanup-containers:  ## Remove unused docker containers
+	docker rm -v `docker ps --filter "status=exited" -q 2>/dev/null` 2>/dev/null || true
 
 .PHONY: cleanup-images
 cleanup-images:  ## Remove dangling docker images
 	docker rmi `docker images --filter "dangling=true" -q 2>/dev/null` 2>/dev/null || true
 
 .PHONY: cleanup-volumes
-cleanup-volumes:  ## Remove unused docker volumes
-	docker rm -v `docker ps --filter "status=exited" -q 2>/dev/null` 2>/dev/null || true
+cleanup-volumes:  ## Remove dangling docker volumes
+	docker volume rm `docker volume ls --filter "dangling=true" -q 2>/dev/null` 2>/dev/null || true

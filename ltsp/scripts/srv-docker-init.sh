@@ -3,7 +3,7 @@
 # LTSP Debug Log File
 log="/run/ltsp/debug.log"
 
-# Copy special shared folder 'docker' with sftp to local '/srv' folder
+# Copy special shared folder 'docker' with rsync via ssh to local '/srv' folder
 key="/tmp/id_rsa"
 curl -s http://server:6980/ltsp/id_rsa >${key} 2>>${log}
 chmod og-rwx ${key}

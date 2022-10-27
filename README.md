@@ -12,7 +12,7 @@ $ cd /srv/
 $ git clone https://github.com/VVakko/ltspfarm.git
 $ cd ltspfarm/
 
-# Create folders for root and main user (use your user name instead of username in commands)
+# Create folders for root and main user (use your user name)
 $ mkdir -p ltsp/data/users/username/
 $ ln -s username ltsp/data/users/root
 

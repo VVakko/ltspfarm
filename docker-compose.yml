@@ -79,7 +79,7 @@ services:
         if [ ! -d "$$ssh_home" ]; then
           mkdir -p $$ssh_home;
           ssh-keygen -t rsa -P '' -f $$ssh_home/id_rsa;
-          cat $$ssh_home/id_rsa >> /srv/tftp/ltsp/id_rsa;
+          cat $$ssh_home/id_rsa > /srv/tftp/ltsp/id_rsa;
           echo -n $$ssh_restrict `cat $$ssh_home/id_rsa.pub` >> $$ssh_home/authorized_keys;
           chmod 0600 $$ssh_home/authorized_keys;
           chmod 0640 $$ssh_home/*.pub;

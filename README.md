@@ -62,7 +62,8 @@ $ docker compose up --detach
 The image building on the **Intel NUC** computer will last about 3.5 minutes. But if this image is builded on a computer **Raspberry Pi 4**, then it will take about 77 minutes (considering that an **NVMe**-disk is used instead of an **SD**-card!). Therefore, in the second case, it makes sense to transfer the building process to one of our nodes. It is very simple to do this. It is necessary that at least one node is started. Next, instead of the `make build-image` command, you need to run the command:
 ```sh
 $ nano ~/.ssh/config
-Host *
+Host ltsp ltsp51 ltsp52 ltsp53 ltsp54 ltsp55 ltsp56 ltsp57 ltsp58 ltsp59 ltsp60
+    HostName %h.your.domain
     LogLevel ERROR
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null

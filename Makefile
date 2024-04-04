@@ -20,8 +20,8 @@ ifeq ($(shell uname --hardware-platform), x86_64)
 else ifeq ($(shell uname --hardware-platform), aarch64)
 	@echo "Install buildx for arm64 (aarch64)..."
 	docker run --rm --privileged tonistiigi/binfmt --install amd64,arm64
-	docker buildx create --platform linux/amd64 --use --name amd64
-	docker buildx create --platform linux/arm64 --use --name arm64
+#	docker buildx create --platform linux/amd64 --use --name amd64
+#	docker buildx create --platform linux/arm64 --use --name arm64
 endif
 
 .PHONY: build-image
@@ -31,6 +31,13 @@ build-image:  ## Build main LTSP image for network booting
 		--output ./images \
 		--platform linux/amd64
 
+.PHONY: build-image-arm64
+build-image-arm64:  ## Build main LTSP image for network booting
+	@docker buildx build \
+		--file ./build/Dockerfile ./build \
+		--output ./images \
+		--platform linux/arm64
+
 .PHONY: build-image-remote
 build-image-remote:  ## Build on remote node main LTSP image for network booting
 	@export DOCKER_HOST="ssh://$(shell \
@@ -39,6 +46,15 @@ build-image-remote:  ## Build on remote node main LTSP image for network booting
 		| grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' \
 		| uniq | shuf -n 1 \
 	)" && make build-image
+
+.PHONY: build-image-remote-arm64
+build-image-remote-arm64:  ## Build on remote node main LTSP image for network booting (arm64)
+	@export DOCKER_HOST="ssh://$(shell \
+		docker logs ltspfarm-http --since 1h 2>&1 \
+		| grep "ltspfarm/x86_64" \
+		| grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' \
+		| uniq | shuf -n 1 \
+	)" && make buildx-install && make build-image-arm64
 
 .PHONY: build-ltsp
 build-ltsp:  ## Build LTSP docker images for running LTSP farm

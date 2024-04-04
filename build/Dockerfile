@@ -5,7 +5,7 @@
 FROM ubuntu:22.04 as ltsp
 
 ENV DEBIAN_FRONTEND="noninteractive"
-ENV VERSION="2022-10-25"
+ENV VERSION="2024-04-04"
 
 # Install updates and LTSP package
 RUN apt-get -y update \
@@ -36,6 +36,7 @@ RUN echo 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";\n' \
 	>>/etc/apt/apt.conf.d/01norecommend \
  && apt-get update \
  && apt-get -y install \
+    apparmor \
 	bash-completion \
 	bc \
 	cron \
@@ -45,7 +46,6 @@ RUN echo 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";\n' \
 	initramfs-tools \
 	jnettop \
 	jq \
-	linux-image-generic \
 	lm-sensors \
 	mc \
 	nano \
@@ -58,8 +58,13 @@ RUN echo 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";\n' \
 	tcpdump \
 	telnet \
 	ubuntu-minimal \
-	wget \
- && apt-get purge -y --auto-remove \
+	wget
+RUN if [ "$(uname -m)" = "x86_64" ]; then \
+		apt-get -y install linux-image-generic; \
+	elif [ "$(uname -m)" = "aarch64" ]; then \
+		apt-get -y install linux-image-raspi linux-firmware-raspi ubuntu-raspi-settings; \
+	fi
+RUN apt-get purge -y --auto-remove \
 	ubuntu-advantage-tools \
 	vim-common \
 	vim-tiny \
@@ -117,8 +122,11 @@ RUN sed -i "s/\${VERSION}/${VERSION}/" /etc/motd
 
 # Generate image
 ENV OMIT_FUNCTIONS="remove_users"
-RUN ltsp image -I /
-
+RUN if [ "$(uname -m)" = "x86_64" ]; then \
+		ltsp image -I /; \
+	elif [ "$(uname -m)" = "aarch64" ]; then \
+		ltsp image -I --mksquashfs-params='-comp lzo' /; \
+	fi
 
 #-------------------------------------------------------------------------------
 # Copying created rootfs images to local filesystem

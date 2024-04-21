@@ -5,7 +5,7 @@
 FROM ubuntu:22.04 as ltsp
 
 ENV DEBIAN_FRONTEND="noninteractive"
-ENV VERSION="2024-04-04"
+ENV VERSION="2024-04-21"
 
 # Install updates and LTSP package
 RUN apt-get -y update \

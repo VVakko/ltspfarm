@@ -18,17 +18,17 @@ services:
       - shared:/srv/tftp
     entrypoint: [ "/bin/sh", "-c" ]
     command:
-      - touch /etc/ssh/ssh_host_none_key.pub;
+      - |
+        touch /etc/ssh/ssh_host_none_key.pub
         while true; do
-          tftp_home='/srv/tftp/ltsp';
-          echo "Copying initrd.img and vmlinuz files...";
+          tftp_home='/srv/tftp/ltsp'
+          echo "Copying initrd.img and vmlinuz files..."
           mkdir -p $$tftp_home && cp -prf /srv/tftp.images/* $$tftp_home &&
-          echo "Generating ltsp.img and iPXE configuration files...";
+          echo "Generating ltsp.img and iPXE configuration files..."
           ltsp initrd &&
-          ltsp ipxe --http=1 --http-image=1 &&
-          sed -i 's@//\$${srv}@//\$${srv}:6980@g' $$tftp_home/ltsp.ipxe &&
+          ltsp ipxe &&
           touch /srv/tftp/.tftp-ready &&
-          inotifywait -e create,delete,modify,move -r /etc/ltsp --quiet;
+          inotifywait -e create,delete,modify,move -r /etc/ltsp --quiet
         done
 
   ltspfarm-http:
@@ -46,11 +46,18 @@ services:
       - shared:/srv/tftp
     entrypoint: [ "/bin/sh", "-c" ]
     command:
-      - while [ ! -f /srv/tftp/.tftp-ready ]; do sleep 1; done;
-        echo "Generating nginx configuration file...";
-        ltsp http -I 2>/dev/null;
-        ln -sf /proc/self/fd/2 /var/log/nginx/access.log;
-        ln -sf /proc/self/fd/2 /var/log/nginx/error.log;
+      - |
+        while [ ! -f /srv/tftp/.tftp-ready ]; do sleep 1; done
+        echo "Generating nginx configuration file..."
+        cat > /etc/nginx/conf.d/ltsp.conf << 'EOF'
+        server {
+          server_name ~^(www\.)?(?<domain>.+)$;
+          location /ltsp/ { root /srv/tftp; autoindex on; }
+          location /ltsp/images/ { root /srv/ltsp/..; autoindex on; }
+        }
+        EOF
+        ln -sf /proc/self/fd/2 /var/log/nginx/access.log
+        ln -sf /proc/self/fd/2 /var/log/nginx/error.log
         exec nginx -g 'daemon off;'
 
   ltspfarm-sshd:
@@ -69,22 +76,23 @@ services:
       - shared:/srv/tftp
     entrypoint: [ "/bin/sh", "-c" ]
     command:
-      - while [ ! -f /srv/tftp/.tftp-ready ]; do sleep 1; done;
-        echo "Generating sshd configuration file...";
-        ssh_home='/srv/ltsp/.ssh';
-        ssh_restrict='command="LC_ALL=C /usr/bin/rrsync -ro /srv/ltsp",restrict ';
-        ssh-keygen -A;
+      - |
+        while [ ! -f /srv/tftp/.tftp-ready ]; do sleep 1; done
+        echo "Generating sshd configuration file..."
+        ssh_home='/srv/ltsp/.ssh'
+        ssh_restrict='command="LC_ALL=C /usr/bin/rrsync -ro /srv/ltsp",restrict '
+        ssh-keygen -A
         if [ ! -d "$$ssh_home" ]; then
-          mkdir -p $$ssh_home;
-          ssh-keygen -t rsa -P '' -f $$ssh_home/id_rsa;
-          echo -n $$ssh_restrict `cat $$ssh_home/id_rsa.pub` >> $$ssh_home/authorized_keys;
-          chmod 0600 $$ssh_home/authorized_keys;
-          chmod 0640 $$ssh_home/*.pub;
-          chmod 0700 $$ssh_home;
-          chown -R ltsp:ltsp $$ssh_home;
-        fi;
-        cat $$ssh_home/id_rsa >/srv/tftp/ltsp/id_rsa;
-        mkdir -p /run/sshd;
+          mkdir -p $$ssh_home
+          ssh-keygen -t rsa -P '' -f $$ssh_home/id_rsa
+          echo -n $$ssh_restrict `cat $$ssh_home/id_rsa.pub` >> $$ssh_home/authorized_keys
+          chmod 0600 $$ssh_home/authorized_keys
+          chmod 0640 $$ssh_home/*.pub
+          chmod 0700 $$ssh_home
+          chown -R ltsp:ltsp $$ssh_home
+        fi
+        cat $$ssh_home/id_rsa >/srv/tftp/ltsp/id_rsa
+        mkdir -p /run/sshd
         sshd -t && exec /usr/sbin/sshd -D
 
   ltspfarm-tftp:
@@ -99,15 +107,13 @@ services:
       - NET_ADMIN
     network_mode: host
     volumes:
+      - ${PWD}/ltsp:/etc/ltsp
       - ${PWD}/images/ltsp:/srv/ltsp/images
       - shared:/srv/tftp
     entrypoint: [ "/bin/sh", "-c" ]
     command:
-      - while [ ! -f /srv/tftp/.tftp-ready ]; do sleep 1; done;
-        echo "Generating dnsmasq configuration file...";
-        ltsp dnsmasq --dns=0 --proxy-dhcp=1 --real-dhcp=0 --tftp=1 2>/dev/null;
-        dnsmasq_conf='/etc/dnsmasq.d/ltsp-dnsmasq.conf';
-        sed -i 's@^dhcp-range=set:proxy,172.*@#&@' $$dnsmasq_conf;
-        sed -i 's@^dhcp-option=option:dns-server.*@#&@' $$dnsmasq_conf;
-        sed -i 's@ltsp/ltsp.ipxe@http://\$${proxydhcp/dhcp-server}:6980/&@' $$dnsmasq_conf;
+      - |
+        while [ ! -f /srv/tftp/.tftp-ready ]; do sleep 1; done
+        echo "Generating dnsmasq configuration file..."
+        ltsp dnsmasq --dns=0 --proxy-dhcp=1 --real-dhcp=0 --tftp=1 2>/dev/null
         exec dnsmasq --no-daemon --conf-dir=/etc/dnsmasq.d

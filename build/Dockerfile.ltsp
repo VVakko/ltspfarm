@@ -2,26 +2,29 @@
 # Base Part Used for LTSP-Server and LTSP-Client
 #-------------------------------------------------------------------------------
 
-FROM ubuntu:22.04 as ltsp
-
-ENV DEBIAN_FRONTEND="noninteractive"
+FROM ubuntu:24.04 AS ltsp
 
 # Install updates and LTSP package
+ENV DEBIAN_FRONTEND="noninteractive"
 RUN apt-get -y update \
  && apt-get -y upgrade \
  && apt-get -y install \
-	wget \
+	patch software-properties-common \
  && apt-get clean
 
-RUN wget -P /etc/apt/trusted.gpg.d/  https://ltsp.org/misc/ltsp_ubuntu_ppa.gpg \
- && wget -P /etc/apt/sources.list.d/ https://ltsp.org/misc/ltsp-ubuntu-ppa-focal.list \
- && wget -P /etc/apt/sources.list.d/ https://ltsp.org/misc/ltsp-ubuntu-proposed-focal.list
-
-RUN apt-get -y update \
+RUN add-apt-repository -y ppa:ltsp/proposed \
+ && apt-get -y update \
  && apt-get -y install \
 	ltsp-binaries \
-	ltsp-cloud \
+	ltsp \
  && apt-get clean
+
+# Applying LTSP patches for HTTP and Docker compatibility
+# https://github.com/ltsp/ltsp/pull/89/
+# https://github.com/ltsp/ltsp/pull/90/
+COPY ltsp-patches /tmp/ltsp-patches
+RUN find /tmp/ltsp-patches -name "*.patch" -type f -exec patch -p1 -d /usr/share/ltsp -i {} \; \
+ && rm -rf /tmp/ltsp-patches
 
 
 #-------------------------------------------------------------------------------

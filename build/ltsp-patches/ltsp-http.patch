@@ -1,0 +1,132 @@
+diff -Naur ltsp.orig/client/init/45-networking.sh ltsp/client/init/45-networking.sh
+--- ltsp.orig/client/init/45-networking.sh	2025-09-21 08:40:53.000000000 +0300
++++ ltsp/client/init/45-networking.sh	2025-10-15 00:20:32.891380825 +0300
+@@ -181,7 +181,7 @@
+     local cmd
+ 
+     test -z "$SERVER" || return 0
+-    grep -Eqw 'root=/dev/nbd.*|root=/dev/nfs' /proc/cmdline ||
++    grep -Eqw 'root=/dev/nbd.*|root=/dev/nfs|ltsp.image=(http|https|ftp)' /proc/cmdline ||
+         return 0
+     if is_command ss; then
+         cmd="ss -tn"
+diff -Naur ltsp.orig/client/initrd-bottom/55-initrd-bottom.sh ltsp/client/initrd-bottom/55-initrd-bottom.sh
+--- ltsp.orig/client/initrd-bottom/55-initrd-bottom.sh	2025-09-21 08:40:53.000000000 +0300
++++ ltsp/client/initrd-bottom/55-initrd-bottom.sh	2025-10-15 00:24:00.562371431 +0300
+@@ -26,18 +26,35 @@
+     tmpfs="/run/initramfs/ltsp"
+     if [ -n "$IMAGE" ]; then
+         img_src=$IMAGE
+-        # If it doesn't start with slash, it's relative to $rootmnt
+-        if [ "${img_src#/}" = "$img_src" ]; then
+-            img_src="$rootmnt/$img_src"
+-        fi
++        img=${img_src%%,*}
++        rest=${img_src#$img}
++        case "${img}" in
++            http:*|https:*|ftp:*)
++                IMAGE_TO_RAM=1
++                ;;
++            /*)
++                true
++                ;;
++            *)
++                # If it doesn't start with slash, it's relative to $rootmnt
++                if [ "${img_src#/}" = "$img_src" ]; then
++                    img_src="$rootmnt/$img_src"
++                fi
++                img="$rootmnt/$img"
++                ;;
++        esac
+         if [ "$IMAGE_TO_RAM" = "1" ]; then
+-            img=${img_src%%,*}
+-            rest=${img_src#$img}
+             re mkdir -p "$tmpfs"
+             re vmount -t tmpfs -o mode=0755 tmpfs "$tmpfs"
+-            echo "Running: cp -a $img $tmpfs/${img##*/}"
+-            re cp -a "$img" "$tmpfs/${img##*/}"
+-            re umount "$rootmnt"
++            # If it doesn't start with slash, image should be downloaded
++            if [ "${img#/}" = "$img" ]; then
++                warn "Running: wget $img -O $tmpfs/${img##*/}"
++                re wget "$img" -O "$tmpfs/${img##*/}"
++            else
++                echo "Running: cp -a $img $tmpfs/${img##*/}"
++                re cp -a "$img" "$tmpfs/${img##*/}"
++                re umount "$rootmnt"
++            fi
+             img_src="$tmpfs/${img##*/}$rest"
+         fi
+     elif [ -d "$rootmnt/proc" ]; then
+diff -Naur ltsp.orig/client/initrd-bottom/initramfs-tools/ltsp-hook.conf ltsp/client/initrd-bottom/initramfs-tools/ltsp-hook.conf
+--- ltsp.orig/client/initrd-bottom/initramfs-tools/ltsp-hook.conf	2025-09-21 08:40:53.000000000 +0300
++++ ltsp/client/initrd-bottom/initramfs-tools/ltsp-hook.conf	2025-10-15 00:24:20.151370696 +0300
+@@ -61,6 +61,8 @@
+     grep -qs "init=/sbin/init-ltsp" /proc/cmdline && return 0
+     # If a casper boot was requested, return
+     grep -qs "boot=casper" /proc/cmdline && return 0
++    # If a LTSP image over HTTP was requested, set ltsp-http boot method
++    grep -qs 'ltsp.image=\(http\|https\|ftp\):' /proc/cmdline && export BOOT=ltsp-http
+ 
+     # Neutralize all LTSP5 scripts to prevent them from interfering.
+     # Symlinking to /bin/true won't work since that's a symlink to busybox.
+diff -Naur ltsp.orig/client/initrd-bottom/initramfs-tools/ltsp-http ltsp/client/initrd-bottom/initramfs-tools/ltsp-http
+--- ltsp.orig/client/initrd-bottom/initramfs-tools/ltsp-http	1970-01-01 03:00:00.000000000 +0300
++++ ltsp/client/initrd-bottom/initramfs-tools/ltsp-http	2025-10-15 00:20:07.195382228 +0300
+@@ -0,0 +1,43 @@
++# This file is part of LTSP, https://ltsp.org
++# Copyright 2019-2020 the LTSP team, see AUTHORS
++# SPDX-License-Identifier: GPL-3.0-or-later
++
++# Simple wrapper to configure network and skip the root mounting
++
++# ltsp-hook.conf automaticaly loads it if ltsp.image= contains url.
++# Another way to hook would be boot=ltsp-http.
++
++mountroot(){
++    # For DHCP
++    modprobe af_packet
++
++    wait_for_udev 10
++
++    # Default delay is around 180s
++    delay=${ROOTDELAY:-180}
++
++    # loop until configure_networking succeeds
++    configure_networking
++    ret=$?
++    ltsp_http_retry_count=0
++    while [ ${ltsp_http_retry_count} -lt "${delay}" ] && [ $ret -ne 0 ] ; do
++        [ "$quiet" != "y" ] && log_begin_msg "Retrying network configuration"
++        sleep 1
++        configure_networking
++        ret=$?
++        ltsp_http_retry_count=$(( ltsp_http_retry_count + 1 ))
++        [ "$quiet" != "y" ] && log_end_msg
++    done
++}
++
++mount_top(){
++    :
++}
++
++mount_premount(){
++    :
++}
++
++mount_bottom(){
++    :
++}
+diff -Naur ltsp.orig/common/initrd/35-initrd.sh ltsp/common/initrd/35-initrd.sh
+--- ltsp.orig/common/initrd/35-initrd.sh	2025-09-21 08:40:53.000000000 +0300
++++ ltsp/common/initrd/35-initrd.sh	2025-10-15 00:24:44.097369828 +0300
+@@ -33,6 +33,9 @@
+     # Busybox doesn't support ln -r
+     re ln -s ../../usr/share/ltsp/client/initrd-bottom/initramfs-tools/ltsp-hook.conf \
+         "$_DST_DIR/conf/conf.d/00-ltsp.conf"
++    re mkdir -p "$_DST_DIR/scripts"
++    re ln -s ../../usr/share/ltsp/client/initrd-bottom/initramfs-tools/ltsp-http \
++        "$_DST_DIR/scripts/ltsp-http"
+     re mkdir -p "$_DST_DIR/etc/ltsp"
+     if [ -d /etc/ltsp ]; then
+         re cp -a /etc/ltsp/. "$_DST_DIR/etc/ltsp/"

@@ -1,0 +1,14 @@
+diff -Naur ltsp.orig/server/dnsmasq/55-dnsmasq.sh ltsp/server/dnsmasq/55-dnsmasq.sh
+--- ltsp.orig/server/dnsmasq/55-dnsmasq.sh	2025-09-21 08:40:53.000000000 +0300
++++ ltsp/server/dnsmasq/55-dnsmasq.sh	2025-10-15 00:51:55.002151787 +0300
+@@ -45,7 +45,9 @@
+ s|^\(tftp-root=\).*|\1$TFTP_DIR|
+ s|^enable-tftp|$(textifb "$TFTP" "&" "#&")|
+ "
+-    restart_dnsmasq
++    # Automatic restart is disabled because the service will be running
++    # in a Docker container without systemctl.
++    #restart_dnsmasq
+ }
+ 
+ dns_server() {

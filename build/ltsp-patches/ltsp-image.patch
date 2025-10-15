@@ -1,0 +1,115 @@
+diff -Naur ltsp.orig/server/image/35-image.sh ltsp/server/image/35-image.sh
+--- ltsp.orig/server/image/35-image.sh	2025-09-21 08:40:53.000000000 +0300
++++ ltsp/server/image/35-image.sh	2025-10-15 10:19:23.616347727 +0300
+@@ -8,14 +8,15 @@
+ image_cmdline() {
+     local args _COW_DIR img_src
+ 
+-    args=$(getopt -n "ltsp $_APPLET" -o "b:c:i:k:m:r::" -l \
+-        "backup:,cleanup:,ionice:,kernel-initrd:,mksquashfs-params:,revert::" -- "$@") ||
++    args=$(re getopt -n "ltsp $_APPLET" -o "b:c:I:i:k:m:r::" -l \
++        "backup:,cleanup:,in-place::,ionice:,kernel-initrd:,mksquashfs-params:,revert::" -- "$@") ||
+         usage 1
+     eval "set -- $args"
+     while true; do
+         case "$1" in
+             -b|--backup) shift; BACKUP=$1 ;;
+             -c|--cleanup) shift; CLEANUP=$1 ;;
++            -I|--in-place) shift; IN_PLACE=${1:-1} ;;
+             -i|--ionice) shift; IONICE=$1 ;;
+             -k|--kernel-initrd) shift; KERNEL_INITRD=$1 ;;
+             -m|--mksquashfs-params) shift; MKSQUASHFS_PARAMS=$1 ;;
+@@ -50,6 +51,10 @@
+     img_path=$(add_path_to_src "${img_src%%,*}")
+     _IMG_NAME=$(img_path_to_name "$img_path")
+     re test "image_main:$_IMG_NAME" != "image_main:"
++    if [ "$IN_PLACE" = "1" ]; then
++        _COW_DIR="$img_path"
++        return 0
++    fi
+     _COW_DIR=$(re mktemp -d)
+     exit_command "rw rmdir '$_COW_DIR'"
+     # _COW_DIR has mode=0700; use a subdir to hide the mount from users
+diff -Naur ltsp.orig/server/image/55-cleanup.sh ltsp/server/image/55-cleanup.sh
+--- ltsp.orig/server/image/55-cleanup.sh	2025-09-21 08:40:53.000000000 +0300
++++ ltsp/server/image/55-cleanup.sh	2025-10-15 10:19:59.657349028 +0300
+@@ -8,9 +8,11 @@
+     test "$CLEANUP" != "0" ||
+         return 0
+     re test "cleanup_main:$_COW_DIR" != "cleanup_main:"
+-    if [ "$OVERLAY" != 0 ] && [ "$(stat -fc %T "$_COW_DIR")" != "overlayfs" ]
+-    then
+-        die "Can't clean up without overlay: $_COW_DIR"
++    if [ "$IN_PLACE" != "1" ] || [ "$_COW_DIR" = "/" ]; then
++        if [ "$OVERLAY" != 0 ] && [ "$(stat -fc %T "$_COW_DIR")" != "overlayfs" ]
++        then
++            die "Can't clean up without overlay: $_COW_DIR"
++        fi
+     fi
+     echo "Cleaning up $_IMG_NAME before mksquashfs..."
+     # You can override any of the functions with a higher numbered script
+diff -Naur ltsp.orig/server/image/65-mksquashfs.sh ltsp/server/image/65-mksquashfs.sh
+--- ltsp.orig/server/image/65-mksquashfs.sh	2025-09-21 08:40:53.000000000 +0300
++++ ltsp/server/image/65-mksquashfs.sh	2025-10-15 10:28:15.888738303 +0300
+@@ -28,8 +28,14 @@
+     re mv "$BASE_DIR/images/$_IMG_NAME.img.tmp" "$BASE_DIR/images/$_IMG_NAME.img"
+     # Unmount everything and continue with the next image
+     rw at_exit -EXIT
+-    echo "Running: ltsp kernel $BASE_DIR/images/$_IMG_NAME.img"
+-    re "$0" kernel ${KERNEL_INITRD:+-k "$KERNEL_INITRD"} "$BASE_DIR/images/$_IMG_NAME.img"
++    if [ "$IN_PLACE" = "1" ]; then
++        kernel_src="$_COW_DIR"
++    else
++        kernel_src="$BASE_DIR/images/$_IMG_NAME.img"
++    fi
++    echo "Running: ltsp kernel ${IN_PLACE:+-I"$IN_PLACE"} $kernel_src"
++    re "$0" kernel ${KERNEL_INITRD:+-k "$KERNEL_INITRD"} "${IN_PLACE:+-I"$IN_PLACE"}" \
++        "$kernel_src"
+ }
+ 
+ # Handle ADD_IMAGE_EXCLUDES and OMIT_IMAGE_EXCLUDES
+diff -Naur ltsp.orig/server/kernel/55-kernel.sh ltsp/server/kernel/55-kernel.sh
+--- ltsp.orig/server/kernel/55-kernel.sh	2025-09-21 08:40:53.000000000 +0300
++++ ltsp/server/kernel/55-kernel.sh	2025-10-15 10:30:13.556014861 +0300
+@@ -8,13 +8,14 @@
+ kernel_cmdline() {
+     local args
+ 
+-    args=$(getopt -n "ltsp $_APPLET" -o "k:" -l \
+-        "kernel-initrd:" -- "$@") ||
++    args=$(re getopt -n "ltsp $_APPLET" -o "k:I::" -l \
++        "kernel-initrd:,in-place::" -- "$@") ||
+         usage 1
+     eval "set -- $args"
+     while true; do
+         case "$1" in
+             -k|--kernel-initrd) shift; KERNEL_INITRD=$1 ;;
++            -I|--in-place) shift; IN_PLACE=${1:-1} ;;
+             --) shift; break ;;
+             *) die "ltsp $_APPLET: error in cmdline: $*" ;;
+         esac
+@@ -45,13 +46,17 @@
+             re rpi_image "$img_name"
+             continue
+         fi
+-        tmp=$(re mktemp -d)
+-        exit_command "rw rmdir '$tmp'"
+-        # tmp has mode=0700; use a subdir to hide the mount from users
+-        re mkdir -p "$tmp/root" "$tmp/tmpfs"
+-        exit_command "rw rmdir '$tmp/root' '$tmp/tmpfs'"
+-        re mount_img_src "$img_src" "$tmp/root" "$tmp/tmpfs"
+-        tmp=$tmp/root
++        if [ "$IN_PLACE" = "1" ]; then
++            tmp="$img_path"
++        else
++            tmp=$(re mktemp -d)
++            exit_command "rw rmdir '$tmp'"
++            # tmp has mode=0700; use a subdir to hide the mount from users
++            re mkdir -p "$tmp/root" "$tmp/tmpfs"
++            exit_command "rw rmdir '$tmp/root' '$tmp/tmpfs'"
++            re mount_img_src "$img_src" "$tmp/root" "$tmp/tmpfs"
++            tmp=$tmp/root
++        fi
+         re mkdir -p "$TFTP_DIR/ltsp/$img_name/"
+         read -r vmlinuz initrd <<EOF
+ $(search_kernel "$tmp")

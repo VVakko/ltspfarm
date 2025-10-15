@@ -2,34 +2,37 @@
 # Base Part Used for LTSP-Server and LTSP-Client
 #-------------------------------------------------------------------------------
 
-FROM ubuntu:22.04 as ltsp
-
-ENV DEBIAN_FRONTEND="noninteractive"
-ENV VERSION="2024-04-21"
+FROM ubuntu:24.04 AS ltsp
 
 # Install updates and LTSP package
+ENV DEBIAN_FRONTEND="noninteractive"
 RUN apt-get -y update \
  && apt-get -y upgrade \
  && apt-get -y install \
-	wget \
+	patch software-properties-common \
  && apt-get clean
 
-RUN wget -P /etc/apt/trusted.gpg.d/  https://ltsp.org/misc/ltsp_ubuntu_ppa.gpg \
- && wget -P /etc/apt/sources.list.d/ https://ltsp.org/misc/ltsp-ubuntu-ppa-focal.list \
- && wget -P /etc/apt/sources.list.d/ https://ltsp.org/misc/ltsp-ubuntu-proposed-focal.list
-
-RUN apt-get -y update \
+RUN add-apt-repository -y ppa:ltsp/proposed \
+ && apt-get -y update \
  && apt-get -y install \
 	ltsp-binaries \
-	ltsp-cloud \
+	ltsp \
  && apt-get clean
+
+# Applying LTSP patches for HTTP and Docker compatibility
+# https://github.com/ltsp/ltsp/pull/89/
+# https://github.com/ltsp/ltsp/pull/90/
+COPY ltsp-patches /tmp/ltsp-patches
+RUN find /tmp/ltsp-patches -name "*.patch" -type f -exec patch -p1 -d /usr/share/ltsp -i {} \; \
+ && rm -rf /tmp/ltsp-patches
 
 
 #-------------------------------------------------------------------------------
 # Installing Kernel and Basic Software
 #-------------------------------------------------------------------------------
 
-FROM ltsp as rootfs-pre
+FROM ltsp AS rootfs-pre
+ENV VERSION="2025-10-15"
 
 # Install packages, cleanup and disable auto-upgrades
 RUN echo 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";\n' \
@@ -114,7 +117,7 @@ RUN mkdir -p /etc/apt/keyrings \
 # Build rootfs Image
 #-------------------------------------------------------------------------------
 
-FROM rootfs-pre as rootfs
+FROM rootfs-pre AS rootfs
 
 # Generate motd
 COPY motd /etc/motd
@@ -123,10 +126,11 @@ RUN sed -i "s/\${VERSION}/${VERSION}/" /etc/motd
 # Generate image
 ENV OMIT_FUNCTIONS="remove_users"
 RUN if [ "$(uname -m)" = "x86_64" ]; then \
-		ltsp image -I /; \
+		ltsp image --in-place /; \
 	elif [ "$(uname -m)" = "aarch64" ]; then \
-		ltsp image -I --mksquashfs-params='-comp lzo' /; \
+		ltsp image --in-place --mksquashfs-params='-comp lzo' /; \
 	fi
+
 
 #-------------------------------------------------------------------------------
 # Copying created rootfs images to local filesystem

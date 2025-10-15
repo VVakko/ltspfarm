@@ -29,32 +29,34 @@ build-image:  ## Build main LTSP image for network booting
 	@docker buildx build \
 		--file ./build/Dockerfile ./build \
 		--output ./images \
-		--platform linux/amd64
+		--platform linux/amd64; \
+	touch ./ltsp/ltsp.conf
 
 .PHONY: build-image-arm64
 build-image-arm64:  ## Build main LTSP image for network booting
 	@docker buildx build \
 		--file ./build/Dockerfile ./build \
 		--output ./images \
-		--platform linux/arm64
+		--platform linux/arm64; \
+	touch ./ltsp/ltsp.conf
 
 .PHONY: build-image-remote
 build-image-remote:  ## Build on remote node main LTSP image for network booting
-	@export DOCKER_HOST="ssh://$(shell \
-		docker logs ltspfarm-http --since 1h 2>&1 \
+	@IP=$$(docker logs ltspfarm-http --since 1h 2>&1 \
 		| grep "ltspfarm/x86_64" \
 		| grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' \
-		| uniq | shuf -n 1 \
-	)" && make build-image
+		| uniq | shuf -n 1); \
+	export DOCKER_HOST="ssh://$${IP}"; \
+	make build-image
 
 .PHONY: build-image-remote-arm64
 build-image-remote-arm64:  ## Build on remote node main LTSP image for network booting (arm64)
-	@export DOCKER_HOST="ssh://$(shell \
-		docker logs ltspfarm-http --since 1h 2>&1 \
+	@IP=$$(docker logs ltspfarm-http --since 1h 2>&1 \
 		| grep "ltspfarm/x86_64" \
 		| grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' \
-		| uniq | shuf -n 1 \
-	)" && make buildx-install && make build-image-arm64
+		| uniq | shuf -n 1); \
+	export DOCKER_HOST="ssh://$${IP}"; \
+	make buildx-install && make build-image-arm64
 
 .PHONY: build-ltsp
 build-ltsp:  ## Build LTSP docker images for running LTSP farm

@@ -3,7 +3,7 @@ TAG  = acmenet/`basename ${PWD}`
 
 export DOCKER_BUILDKIT = 1
 
-# --- Общая логика получения IP и установки DOCKER_HOST ---
+# The general logic of getting an remote IP and setting DOCKER_HOST variable
 define REMOTE_EXEC
 IP=$$(docker logs ltspfarm-http --since 1h 2>&1 \
 	| grep "ltspfarm/x86_64" \

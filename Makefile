@@ -3,12 +3,55 @@ TAG  = acmenet/`basename ${PWD}`
 
 export DOCKER_BUILDKIT = 1
 
+# --- Общая логика получения IP и установки DOCKER_HOST ---
+define REMOTE_EXEC
+IP=$$(docker logs ltspfarm-http --since 1h 2>&1 \
+	| grep "ltspfarm/x86_64" \
+	| grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' \
+	| uniq | shuf -n 1); \
+export DOCKER_HOST="ssh://$$IP";
+endef
+
 .PHONY: help
 .DEFAULT_GOAL := help
 help:  ## Show make help
 	@grep --no-filename --color=never -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	| awk 'BEGIN { FS = ":.*?## " }; { printf "\033[36m%-30s\033[0m %s\n", $$1, $$2 }' \
 	| sort
+
+.PHONY: build-image-for-platform
+build-image-for-platform:
+	@docker buildx build \
+		--file ./build/Dockerfile ./build \
+		--output ./images \
+		--platform $(PLATFORM) \
+		$(EXTRA_BUILD_ARGS); \
+	touch -m ./ltsp
+
+.PHONY: build-image
+build-image: PLATFORM = linux/amd64
+build-image: build-image-for-platform  ## Build main LTSP image for network booting (amd64)
+
+.PHONY: build-image-arm64
+build-image-arm64: PLATFORM = linux/arm64
+build-image-arm64: build-image-for-platform  ## Build main LTSP image for network booting (arm64)
+
+.PHONY: build-image-arm64-no-fw
+build-image-arm64-no-fw: PLATFORM = linux/arm64
+build-image-arm64-no-fw: EXTRA_BUILD_ARGS = --build-arg EXCLUDE_FIRMWARE=1
+build-image-arm64-no-fw: build-image-for-platform  ## Build main LTSP image for network booting (arm64, without firmware)
+
+.PHONY: build-image-remote
+build-image-remote:  ## Build on remote x86_64 node main LTSP image (amd64)
+	@$(REMOTE_EXEC) make build-image
+
+.PHONY: build-image-remote-arm64
+build-image-remote-arm64:  ## Build on remote x86_64 node (arm64, with buildx setup)
+	@$(REMOTE_EXEC) make buildx-install build-image-arm64
+
+.PHONY: build-image-remote-arm64-no-fw
+build-image-remote-arm64-no-fw:  ## Build on remote x86_64 node (arm64, without firmware)
+	@$(REMOTE_EXEC) make buildx-install build-image-arm64-no-fw
 
 .PHONY: buildx-install
 buildx-install:  ## Install dependencies for multi-platform building
@@ -23,40 +66,6 @@ else ifeq ($(shell uname --hardware-platform), aarch64)
 #	docker buildx create --platform linux/amd64 --use --name amd64
 #	docker buildx create --platform linux/arm64 --use --name arm64
 endif
-
-.PHONY: build-image
-build-image:  ## Build main LTSP image for network booting
-	@docker buildx build \
-		--file ./build/Dockerfile ./build \
-		--output ./images \
-		--platform linux/amd64; \
-	touch ./ltsp/ltsp.conf
-
-.PHONY: build-image-arm64
-build-image-arm64:  ## Build main LTSP image for network booting
-	@docker buildx build \
-		--file ./build/Dockerfile ./build \
-		--output ./images \
-		--platform linux/arm64; \
-	touch ./ltsp/ltsp.conf
-
-.PHONY: build-image-remote
-build-image-remote:  ## Build on remote node main LTSP image for network booting
-	@IP=$$(docker logs ltspfarm-http --since 1h 2>&1 \
-		| grep "ltspfarm/x86_64" \
-		| grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' \
-		| uniq | shuf -n 1); \
-	export DOCKER_HOST="ssh://$${IP}"; \
-	make build-image
-
-.PHONY: build-image-remote-arm64
-build-image-remote-arm64:  ## Build on remote node main LTSP image for network booting (arm64)
-	@IP=$$(docker logs ltspfarm-http --since 1h 2>&1 \
-		| grep "ltspfarm/x86_64" \
-		| grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' \
-		| uniq | shuf -n 1); \
-	export DOCKER_HOST="ssh://$${IP}"; \
-	make buildx-install && make build-image-arm64
 
 .PHONY: build-ltsp
 build-ltsp:  ## Build LTSP docker images for running LTSP farm

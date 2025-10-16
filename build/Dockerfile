@@ -34,9 +34,9 @@ RUN find /tmp/ltsp-patches -name "*.patch" -type f -exec patch -p1 -d /usr/share
 FROM ltsp AS rootfs-pre
 ENV VERSION="2025-10-15"
 
-# Install packages, cleanup and disable auto-upgrades
+# Install packages
 RUN echo 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";\n' \
-	>>/etc/apt/apt.conf.d/01norecommend \
+	>> /etc/apt/apt.conf.d/01norecommend \
  && apt-get update \
  && apt-get -y install \
     apparmor \
@@ -61,12 +61,17 @@ RUN echo 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";\n' \
 	tcpdump \
 	telnet \
 	ubuntu-minimal \
-	wget
+	wget \
+	zstd
+
+# Install kernel: vmlinuz + initrd.img
 RUN if [ "$(uname -m)" = "x86_64" ]; then \
 		apt-get -y install linux-image-generic; \
 	elif [ "$(uname -m)" = "aarch64" ]; then \
-		apt-get -y install linux-image-raspi linux-firmware-raspi ubuntu-raspi-settings; \
+		apt-get -y install linux-image-generic linux-firmware-raspi; \
 	fi
+
+# Cleanup and disable automatic updates
 RUN apt-get purge -y --auto-remove \
 	ubuntu-advantage-tools \
 	vim-common \
@@ -89,7 +94,7 @@ RUN printf "%s\n" \
 	"LANG=en_US.UTF-8" \
 	"LC_TIME=POSIX" \
 	"LC_CTYPE=en_US.UTF-8" \
-	>/etc/locale.conf \
+	> /etc/locale.conf \
  && locale-gen en_US.UTF-8 ru_RU.UTF-8
 
 # Disable systemd-resolved
@@ -103,7 +108,7 @@ RUN mkdir -p /etc/apt/keyrings \
  && chmod a+r /etc/apt/keyrings/docker.gpg \
  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
  	https://download.docker.com/linux/ubuntu \
-  	$(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list >/dev/null \
+  	$(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
  && apt-get -y update \
  && apt-get -y install \
 	containerd.io \
@@ -123,13 +128,17 @@ FROM rootfs-pre AS rootfs
 COPY motd /etc/motd
 RUN sed -i "s/\${VERSION}/${VERSION}/" /etc/motd
 
-# Generate image
+# Generate rootfs image
 ENV OMIT_FUNCTIONS="remove_users"
-RUN if [ "$(uname -m)" = "x86_64" ]; then \
-		ltsp image --in-place /; \
-	elif [ "$(uname -m)" = "aarch64" ]; then \
-		ltsp image --in-place --mksquashfs-params='-comp lzo' /; \
-	fi
+ENV ADD_IMAGE_EXCLUDES="/tmp/image.excludes"
+# Exclude /boot kernel: vmlinuz + initrd.img for RAM economy
+RUN printf "%s\n" boot/initrd\* boot/vmlinuz\* image.excludes.tmp > /tmp/image.excludes
+# Conditionally exclude firmware if EXCLUDE_FIRMWARE is set to 1
+ARG EXCLUDE_FIRMWARE=0
+RUN if [ "${EXCLUDE_FIRMWARE}" = "1" ]; then \
+        echo "usr/lib/firmware*" >> /tmp/image.excludes; \
+    fi
+RUN ltsp image --in-place /
 
 
 #-------------------------------------------------------------------------------

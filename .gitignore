@@ -8,7 +8,7 @@ data/*
 # Except for only one example docker container
 data/docker/*
 !data/docker/
-!data/docker/portainer-agent/
+!data/docker/adm-system/
 
 # Data folder for LTSP images
 images/*

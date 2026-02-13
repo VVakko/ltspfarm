@@ -4,10 +4,11 @@ Requires=docker.service
 After=docker.service
 
 [Service]
-Restart=always
-WorkingDirectory=/srv/docker/portainer-agent/
+RestartSec=1m
+Restart=on-failure
+WorkingDirectory=/srv/adm-system/
 ExecStartPre=/usr/bin/docker compose down -v
-ExecStartPre=-/bin/bash -c 'docker ps -aqf "name=portainer-agent" | xargs docker rm'
+ExecStartPre=-/bin/bash -c 'docker ps -aqf "name=adm-system" | xargs docker rm'
 ExecStart=/usr/bin/docker compose up
 ExecStop=/usr/bin/docker compose down
 

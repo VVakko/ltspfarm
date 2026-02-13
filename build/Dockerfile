@@ -32,7 +32,7 @@ RUN find /tmp/ltsp-patches -name "*.patch" -type f -exec patch -p1 -d /usr/share
 #-------------------------------------------------------------------------------
 
 FROM ltsp AS rootfs-pre
-ENV VERSION="2025-10-15"
+ENV VERSION="2026-02-13"
 
 # Install packages
 RUN echo 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";\n' \
@@ -129,7 +129,6 @@ COPY motd /etc/motd
 RUN sed -i "s/\${VERSION}/${VERSION}/" /etc/motd
 
 # Generate rootfs image
-ENV OMIT_FUNCTIONS="remove_users"
 ENV ADD_IMAGE_EXCLUDES="/tmp/image.excludes"
 # Exclude /boot kernel: vmlinuz + initrd.img for RAM economy
 RUN printf "%s\n" boot/initrd\* boot/vmlinuz\* image.excludes.tmp > /tmp/image.excludes

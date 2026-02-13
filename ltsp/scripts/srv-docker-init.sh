@@ -9,5 +9,5 @@ curl -s http://server:6980/ltsp/id_rsa >${key} 2>>${log}
 chmod og-rwx ${key}
 rsync -Pav -e "ssh -i ${key} -p 6922 \
     -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
-    ltsp@server:/data/docker/ /srv/docker/ >>${log} 2>&1
+    ltsp@server:/data/docker/ /srv/ >>${log} 2>&1
 rm -f ${key}
